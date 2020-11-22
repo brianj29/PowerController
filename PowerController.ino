@@ -28,53 +28,26 @@ int RCTransmissionPin = D3;
 
 ESP8266WebServer server(80);
 
-/**
- * HTTP Response with homepage
- * TODO:  generate this dynamically based on codes array
- */
-String homepage = 
-    "<html>\n"
-    "<head>\n"
-        "<title>Power Switch Control</title>\n"
-        "<style>\n"
-            "body { font-family: Arial, sans-serif; font-size:12px; }\n"
-        "</style>\n"
-    "</head>\n"
-    "<body>\n"
-        "<h1>Power Switch Control</h1>\n"
-        "<ul>\n"
-            "<li><a href=\"switch/1/on\">Switch #1 on</a></li>\n"
-            "<li><a href=\"switch/1/off\">Switch #1 off</a></li>\n"
-        "</ul>\n"
-        "<ul>\n"
-            "<li><a href=\"switch/2/on\">Switch #2 on</a></li>\n"
-            "<li><a href=\"switch/2/off\">Switch #2 off</a></li>\n"
-        "</ul>\n"
-        "<ul>\n"
-            "<li><a href=\"switch/3/on\">Switch #3 on</a></li>\n"
-            "<li><a href=\"switch/3/off\">Switch #3 off</a></li>\n"
-        "</ul>\n"
-        "<hr>\n"
-        "<a href=\"https://github.com/sui77/rc-switch/\">https://github.com/sui77/rc-switch/</a>\n"
-    "</body>\n"
-    "</html>\n";
-
-const char *codes[][2] =
+const char *codes[][3] =
  {
   // SMART Electrician switches "(YTP) Model: JQ01TX-03 Date: 1926"
   // Protocol 1
   //         on                           off
-  {"011101101111011100000011", "011101101111011100000010"}, // 1
-  {"011101101111011100000101", "011101101111011100000100"}, // 2
-  {"011101101111011100000111", "011101101111011100000110"}, // 3
+  {"011101101111011100000011", "011101101111011100000010", "Kitchen amp"},     // 1
+  {"011101101111011100000101", "011101101111011100000100", "Living room amp"}, // 2
+  {"011101101111011100000111", "011101101111011100000110", "Switch 3"},        // 3
 };
+
+//
+// Handle a request to turn a switch on or off
+//
 
 void handleSwitch() {
   String name = server.pathArg(0);
   String state = server.pathArg(1);
   Serial.println("Got switch: " + name + " state: " + state);
 
-  unsigned num = name.toInt() - 1; // names start at 1, but indices start at 0
+  unsigned num = name.toInt();
   unsigned col = 999;
   if (state == "on") {
     col = 0;
@@ -99,6 +72,44 @@ void handleSwitch() {
   server.send(303);                  // HTTP status 303 (See Other)
 }
 
+//
+// Handle a request for the home page
+//
+
+void handleHomepage() {
+
+  // Generate the header and boilerplate
+  String title = "Power Switch Control";
+  String homepage =
+    "<html>\n"
+    "<head>\n"
+        "<title>" + title + "</title>\n"
+        "<style>\n"
+            "body { font-family: Arial, sans-serif; font-size:12px; }\n"
+        "</style>\n"
+    "</head>\n"
+    "<body>\n"
+        "<h1>" + title + "</h1>\n";
+
+  // Add on/off entries for each switch
+  for (int i = 0; i < (sizeof(codes) / sizeof(codes[0])); i++) {
+    homepage +=
+        "<ul>\n"
+            "<li><a href=\"switch/" + String(i) + "/on\">" + codes[i][2] + " on</a></li>\n"
+            "<li><a href=\"switch/" + String(i) + "/off\">" + codes[i][2] + " off</a></li>\n"
+        "</ul>\n";
+  }
+
+  // Add the footer
+  homepage +=
+        "<hr>\n"
+        "<a href=\"https://github.com/brianj29/PowerController/\">https://github.com/brianj29/PowerController/</a>\n"
+    "</body>\n"
+    "</html>\n";
+
+  server.send(200, "text/html", homepage);
+};
+
 void setup(void) {
   Serial.begin(9600);
   WiFi.mode(WIFI_STA);
@@ -120,9 +131,7 @@ void setup(void) {
     Serial.println("MDNS responder started");
   }
 
-  server.on(F("/"), []() {
-    server.send(200, "text/html", homepage);
-  });
+  server.on(F("/"), handleHomepage);
 
   //server.on(UriBraces("/users/{}"), []() {
   //  String user = server.pathArg(0);
