@@ -17,6 +17,7 @@ const char *hostname = "power"; // mDNS hostname (xxx.local)
 
 // Pin configuration
 int RCTransmissionPin = D3; // output to transmitter
+int RCReceivePin = D2;      // input from receiver
 int WiFiResetPin = D1;      // input, pull low to reset WiFi parameters
 
 RCSwitch mySwitch = RCSwitch();
@@ -66,6 +67,75 @@ void handleSwitch() {
   server.send(303);                  // HTTP status 303 (See Other)
 }
 
+// Calculate a binary code.  From RCSwitch ReceiveDemo_Advanced demo
+static char * dec2binWzerofill(unsigned long Dec, unsigned int bitLength) {
+  static char bin[64]; 
+  unsigned int i=0;
+
+  while (Dec > 0) {
+    bin[32+i++] = ((Dec & 1) > 0) ? '1' : '0';
+    Dec = Dec >> 1;
+  }
+
+  for (unsigned int j = 0; j< bitLength; j++) {
+    if (j >= bitLength - i) {
+      bin[j] = bin[ 31 + i - (j - (bitLength - i)) ];
+    } else {
+      bin[j] = '0';
+    }
+  }
+  bin[bitLength] = '\0';
+  
+  return bin;
+}
+
+//
+// Handle a request to sniff for codes
+//
+unsigned long rcvValue = 0;
+unsigned int rcvLength;
+unsigned int rcvProtocol;
+
+void handleSniff() {
+  // Generate the header and boilerplate
+  String title = "RF Code Sniffer";
+  String page =
+    "<html>\n"
+    "<head>\n"
+        "<title>" + title + "</title>\n"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        "<style>\n"
+            "body { font-family: Arial, sans-serif; font-size:12px; }\n"
+            "table, th, td { border: none; }\n"
+        "</style>\n"
+        "<meta http-equiv=\"refresh\" content=\"1\">\n"
+    "</head>\n"
+    "<body>\n"
+        "<h1>" + title + "</h1>\n";
+
+  if (rcvValue != 0) {
+    page += "<table>";
+    page += "<tr><td><b>Code:</b></td><td>"  + String(rcvValue) + "</td></tr>";
+    page += "<tr><td><b>Length:</b></td><td>"  + String(rcvLength) + "</td></tr>";
+    page += "<tr><td><b>Binary:</b></td><td>"  + String(dec2binWzerofill(rcvValue, rcvLength)) + "</td></tr>";
+    page += "<tr><td><b>Protocol:</b></td><td>"  + String(rcvProtocol) + "</td></tr>";
+    page += "</table><p>";
+  }
+  else {
+    page += "<i>Waiting for code...</i><p>";
+  }
+
+  // Add the footer
+  page +=
+    "<a href=\"/\">Power Switch Control</a>\n"
+        "<hr>\n"
+        "<a href=\"https://github.com/brianj29/PowerController/\">https://github.com/brianj29/PowerController/</a>\n"
+    "</body>\n"
+    "</html>\n";
+
+  server.send(200, "text/html", page);
+}
+
 //
 // Handle a request for the home page
 //
@@ -78,6 +148,7 @@ void handleHomepage() {
     "<html>\n"
     "<head>\n"
         "<title>" + title + "</title>\n"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         "<style>\n"
             "body { font-family: Arial, sans-serif; font-size:12px; }\n"
         "</style>\n"
@@ -96,6 +167,7 @@ void handleHomepage() {
 
   // Add the footer
   homepage +=
+        "<a href=\"sniff\">Sniff for codes</a>\n"
         "<hr>\n"
         "<a href=\"https://github.com/brianj29/PowerController/\">https://github.com/brianj29/PowerController/</a>\n"
     "</body>\n"
@@ -127,14 +199,33 @@ void setup(void) {
   server.on(F("/"), handleHomepage);
 
   server.on(UriRegex("^\\/switch\\/([0-9]+)\\/(on|off)$"), handleSwitch);
+  server.on(UriRegex("^\\/sniff$"), handleSniff);
 
   server.begin();
   Serial.println("HTTP server started");
 
-  mySwitch.enableTransmit( RCTransmissionPin );
+  mySwitch.enableTransmit(RCTransmissionPin);
+  mySwitch.enableReceive(digitalPinToInterrupt(RCReceivePin));
 }
 
 void loop(void) {
   server.handleClient();
   MDNS.update();
+
+  if (mySwitch.available()) {
+    // Save values for snoop page
+    rcvValue = mySwitch.getReceivedValue();
+    rcvLength = mySwitch.getReceivedBitlength();
+    rcvProtocol = mySwitch.getReceivedProtocol();
+
+    Serial.print("Received ");
+    Serial.print( rcvValue );
+    Serial.print(" / ");
+    Serial.print( rcvLength );
+    Serial.print("bit ");
+    Serial.print("Protocol: ");
+    Serial.println( rcvProtocol );
+
+    mySwitch.resetAvailable();
+  }
 }
