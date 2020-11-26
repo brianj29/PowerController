@@ -5,27 +5,22 @@
  * by Brian J. Johnson 11/22/20
  */
 #include <ESP8266WiFi.h>
-#include <WiFiClient.h>
+#include <DNSServer.h>
 #include <ESP8266WebServer.h>
+#include <WiFiManager.h>
 #include <ESP8266mDNS.h>
 #include <RCSwitch.h>
 
 //#include <uri/UriBraces.h>
 #include <uri/UriRegex.h>
 
-#ifndef STASSID
-#define STASSID "your-wifi-id"
-#define STAPSK  "your-password"
-#endif
+const char *hostname = "power"; // mDNS hostname (xxx.local)
 
-const char *hostname = "power";
-const char *ssid = STASSID;
-const char *password = STAPSK;
+// Pin configuration
+int RCTransmissionPin = D3; // output to transmitter
+int WiFiResetPin = D1;      // input, pull low to reset WiFi parameters
 
-// RCSwitch configuration
 RCSwitch mySwitch = RCSwitch();
-int RCTransmissionPin = D3;
-
 ESP8266WebServer server(80);
 
 const char *codes[][3] =
@@ -112,20 +107,19 @@ void handleHomepage() {
 
 void setup(void) {
   Serial.begin(9600);
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
   Serial.println("");
 
-  // Wait for connection
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  WiFiManager wifiManager;
+
+  pinMode(WiFiResetPin, INPUT_PULLUP);
+  if (digitalRead(WiFiResetPin) == 0) {
+    // Pin is pulled low.  Reset the WiFi parameters so the config portal is used.
+    Serial.println("Resetting WiFi parameters");
+    wifiManager.resetSettings();
   }
-  Serial.println("");
-  Serial.print("Connected to ");
-  Serial.println(ssid);
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+
+  // Connect to WiFi.  If network isn't found, put up an AP where user can configure it
+  wifiManager.autoConnect("PowerManager");
 
   if (MDNS.begin(hostname)) {
     Serial.println("MDNS responder started");
