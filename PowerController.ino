@@ -16,8 +16,8 @@
 const char *hostname = "power"; // mDNS hostname (xxx.local)
 
 // Pin configuration
-int RCTransmissionPin = D3; // output to transmitter
-int RCReceivePin = D2;      // input from receiver
+int RCTransmissionPin = D8; // output to transmitter
+int RCReceivePin = D5;      // input from receiver
 int WiFiResetPin = D1;      // input, pull low to reset WiFi parameters
 
 RCSwitch mySwitch = RCSwitch();
