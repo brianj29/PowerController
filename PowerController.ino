@@ -204,6 +204,7 @@ void setup(void) {
   server.begin();
   Serial.println("HTTP server started");
 
+  mySwitch.setRepeatTransmit(20);
   mySwitch.enableTransmit(RCTransmissionPin);
   mySwitch.enableReceive(digitalPinToInterrupt(RCReceivePin));
 }
