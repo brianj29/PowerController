@@ -186,6 +186,7 @@ void handleHomepage() {
 void setup(void) {
   Serial.begin(9600);
   Serial.println("");
+  Serial.setDebugOutput(true); // For WiFi debugging
 
   WiFiManager wifiManager;
 
@@ -197,7 +198,12 @@ void setup(void) {
   }
 
   // Connect to WiFi.  If network isn't found, put up an AP where user can configure it
-  wifiManager.autoConnect("PowerManager");
+  if (!wifiManager.autoConnect("PowerManager")) {
+    Serial.println("Failed to connect, resetting to see if it connects");
+    delay(3000);
+    ESP.restart();
+    delay(5000);
+  }
 
   if (MDNS.begin(hostname)) {
     Serial.println("MDNS responder started");
